@@ -1,0 +1,208 @@
+<style>
+/* Chat Open Button */
+#chatOpen {
+  position: fixed;
+  bottom: 22px;
+  right: 22px;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #6a11cb, #2575fc);
+  color: white;
+  font-size: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 5px 18px rgba(0,0,0,0.25);
+  transition: 0.25s;
+  z-index: 9999;
+}
+#chatOpen:hover {
+  transform: scale(1.08);
+}
+
+/* Chat Box */
+#chatbox {
+  position: fixed;
+  bottom: 95px;
+  right: 22px;
+  width: 340px;
+  max-height: 480px;
+  background: #ffffff;
+  border-radius: 14px;
+  display: none;
+  flex-direction: column;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.25);
+  overflow: hidden;
+  z-index: 9999;
+}
+
+/* Header */
+#chatHeader {
+  background: linear-gradient(135deg, #6a11cb, #2575fc);
+  padding: 14px;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#chatClose {
+  cursor: pointer;
+  font-size: 18px;
+}
+
+/* Messages */
+#chatMessages {
+  padding: 12px;
+  height: 300px;
+  overflow-y: auto;
+  background: #f8f8ff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.msg {
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 85%;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.userMsg {
+  background: #2575fc;
+  color: white;
+  align-self: flex-end;
+}
+
+.botMsg {
+  background: #eae6ff;
+  color: #333;
+  border-left: 4px solid #6a11cb;
+  align-self: flex-start;
+}
+
+/* Input */
+#chatInput {
+  border: none;
+  padding: 12px;
+  font-size: 14px;
+  border-top: 1px solid #ddd;
+  outline: none;
+  width: 100%;
+}
+
+/* Loading dots */
+.loading span {
+  animation: blink 1.4s infinite both;
+}
+.loading span:nth-child(2) { animation-delay: .2s; }
+.loading span:nth-child(3) { animation-delay: .4s; }
+
+@keyframes blink {
+  0% { opacity: .2 }
+  20% { opacity: 1 }
+  100% { opacity: .2 }
+}
+</style>
+
+<!-- Chat Button -->
+<div id="chatOpen">💬</div>
+
+<!-- Chatbox -->
+<div id="chatbox">
+  <div id="chatHeader">
+    AI Assistant
+    <span id="chatClose">✕</span>
+  </div>
+  <div id="chatMessages"></div>
+  <input id="chatInput" type="text" placeholder="Ask about products, returns, policies…" />
+</div>
+
+<script>
+const API_URL = "http://127.0.0.1:8000/chat";
+
+let chatHistory = [];
+
+const chatBox = document.getElementById("chatbox");
+const chatMessages = document.getElementById("chatMessages");
+const chatInput = document.getElementById("chatInput");
+
+/* Toggle */
+document.getElementById("chatOpen").onclick = () => {
+  chatBox.style.display = "flex";
+};
+document.getElementById("chatClose").onclick = () => {
+  chatBox.style.display = "none";
+};
+
+/* Scroll */
+function scrollChat() {
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+/* Escape HTML */
+function escapeHTML(text) {
+  return text.replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
+  })[m]);
+}
+
+/* Add message */
+function addMessage(text, sender) {
+  const div = document.createElement("div");
+  div.className = "msg " + (sender === "user" ? "userMsg" : "botMsg");
+  div.innerHTML = text;
+  chatMessages.appendChild(div);
+  scrollChat();
+}
+
+/* Loading */
+function addLoading() {
+  const div = document.createElement("div");
+  div.className = "msg botMsg loading";
+  div.innerHTML = "<span>.</span><span>.</span><span>.</span>";
+  chatMessages.appendChild(div);
+  scrollChat();
+  return div;
+}
+
+/* Enter */
+chatInput.addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter" || !chatInput.value.trim()) return;
+
+  const userMessage = chatInput.value.trim();
+  chatInput.value = "";
+
+  addMessage(escapeHTML(userMessage), "user");
+  chatHistory.push({ role: "user", content: userMessage });
+
+  const loader = addLoading();
+
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        message: userMessage,
+        history: chatHistory
+      })
+    });
+
+    const data = await res.json();
+    loader.remove();
+
+    const reply = escapeHTML(data.response || "No response");
+    addMessage(reply.replace(/\n/g,"<br>"), "bot");
+
+    chatHistory.push({ role: "assistant", content: data.response });
+  } catch (err) {
+    loader.remove();
+    addMessage("⚠️ Server not reachable", "bot");
+  }
+});
+</script>
